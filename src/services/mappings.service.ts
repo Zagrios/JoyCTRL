@@ -54,6 +54,7 @@ export class MappingsService {
 
     public async updateMapping(mapping: Mapping): Promise<void> {
         const mappings = await this.mappings();
+        console.log("updateMapping", mapping);
         return lastValueFrom(this.config.$set("mappings", mappings.map(m => m.id === mapping.id ? mapping : m)));
     }
 

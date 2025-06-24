@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     error::Error,
-    sync::{Arc, LazyLock, RwLock},
+    sync::{Arc, LazyLock, OnceLock, RwLock},
 };
 
 use sdl2::{
@@ -12,6 +12,9 @@ use sdl2::{
 use tokio::sync::watch;
 
 use crate::model::gamepad::{GamepadAxis, GamepadButton, GamepadState};
+
+static GAMEPAD_STATE_RECEIVER: OnceLock<watch::Receiver<HashMap<u32, GamepadState>>> =
+    OnceLock::new();
 
 pub static GAMEPAD_STATE: LazyLock<Arc<RwLock<GamepadsState>>> =
     LazyLock::new(|| Arc::new(RwLock::new(GamepadsState::new())));
@@ -30,7 +33,10 @@ pub struct GamepadsState {
 impl GamepadsState {
     pub fn new() -> Self {
         let gamepads = HashMap::new();
-        let (tx, _) = watch::channel(gamepads.clone());
+        let (tx, rx) = watch::channel(gamepads.clone());
+
+        let _ = GAMEPAD_STATE_RECEIVER.set(rx);
+
         Self {
             gamepads,
             gamepads_tx: tx,
@@ -120,6 +126,7 @@ impl GamepadsMonitor {
                 }
                 Event::ControllerDeviceAdded { .. } => {
                     if let Ok(gamepad) = self.add_device() {
+                        println!("Gamepad added: {}", gamepad.id());
                         state.gamepads.insert(gamepad.id(), gamepad);
                         state.broadcast(state.gamepads.clone());
                     }

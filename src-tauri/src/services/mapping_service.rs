@@ -1,23 +1,23 @@
 use std::{
-    cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{
-        LazyLock, OnceLock,
+        OnceLock,
         atomic::{AtomicBool, Ordering},
     },
     time::{Duration, Instant},
 };
 
 use crate::{
+    get_app_handle,
     model::{
         config::Config,
         gamepad::{GamepadAxis, GamepadState},
         mapping::*,
     },
-    services::{config_service::CONFIG_SERVICE, gamepad_service::GAMEPAD_STATE},
+    services::{config_service::CONFIG_SERVICE, gamepad_service::GAMEPAD_STATE, virtual_keyboard},
 };
 
-use enigo::{Axis, Button as EnigoButton, Coordinate, Enigo, Key, Keyboard, Mouse, Settings};
+use enigo::{Axis, Button as EnigoButton, Coordinate, Enigo, Keyboard, Mouse, Settings};
 use tauri::AppHandle;
 use tauri_plugin_opener::OpenerExt;
 use tokio::{sync::watch, time::sleep};
@@ -46,13 +46,9 @@ pub fn watch_mapping_active() -> Option<watch::Receiver<bool>> {
 
 #[derive(Debug, Clone)]
 pub struct MappingState {
-    current_mouse_sensitivity: f32,
-    default_mouse_sensitivity: f32,
-    global_scroll_sensitivity: f32,
-    global_stick_sensitivity: f32,
-
-    // État interne pour le suivi des actions
+    scroll_speed: i32,
     active_actions: HashMap<String, Instant>,
+    continuous_actions: HashSet<String>,
     pressed_buttons: HashMap<String, bool>,
     previous_gamepad_state: Option<GamepadState>,
 }
@@ -60,10 +56,8 @@ pub struct MappingState {
 impl MappingState {
     pub fn new() -> Self {
         Self {
-            current_mouse_sensitivity: 5.0,
-            default_mouse_sensitivity: 5.0,
-            global_scroll_sensitivity: 1.0,
-            global_stick_sensitivity: 5.0,
+            scroll_speed: 20, // Between 0 and 100
+            continuous_actions: HashSet::new(),
             active_actions: HashMap::new(),
             pressed_buttons: HashMap::new(),
             previous_gamepad_state: None,
@@ -76,73 +70,99 @@ pub struct MappingExecutor {
     enigo: Enigo,
     config: Config,
     mapping_state: MappingState,
-    last_frame_time: Instant,
     scroll_accumulator_x: f32,
     scroll_accumulator_y: f32,
+    last_scroll_time: Instant,
 }
 
 impl MappingExecutor {
-    pub fn new(app: AppHandle) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let enigo = Enigo::new(&Settings::default())?;
 
         if let Some(config_service) = CONFIG_SERVICE.get() {
-            set_mapping_active(config_service.get_config().start_on_boot);
+            set_mapping_active(config_service.get_config().mapping_active_on_boot);
         }
 
         Ok(Self {
-            app: app.clone(),
+            app: get_app_handle(),
             enigo,
             config: Config::default(),
             mapping_state: MappingState::new(),
-            last_frame_time: Instant::now(),
             scroll_accumulator_x: 0.0,
             scroll_accumulator_y: 0.0,
+            last_scroll_time: Instant::now(),
         })
     }
 
-    pub async fn start_mapping_loop(app: AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-        let mut executor = MappingExecutor::new(app)?;
+    pub async fn start_mapping_loop() -> Result<(), Box<dyn std::error::Error>> {
+        let mut executor = MappingExecutor::new()?;
+        let mut watcher = { GAMEPAD_STATE.read().unwrap().watch_gamepads() };
 
         loop {
+            if !MAPPING_ACTIVE.load(Ordering::Relaxed) {
+                sleep(Duration::from_millis(100)).await;
+                continue;
+            }
+
+            let has_continuous_actions = !executor.mapping_state.continuous_actions.is_empty();
+
+            if has_continuous_actions {
+                tokio::select! {
+                    _ = watcher.changed() => {}
+                    _ = sleep(Duration::from_millis(8)) => {}
+                }
+            } else if watcher.changed().await.is_err() {
+                continue;
+            }
+
             executor.config = {
                 let config = CONFIG_SERVICE.get().unwrap();
                 config.get_config()
             };
 
-            let gamepads = {
-                let state = GAMEPAD_STATE.read().unwrap();
-                state.get_gamepads()
-            };
-
-            if let Some(gamepad) = gamepads.values().next() {
-                executor.process_gamepad_state(gamepad.clone());
-            }
-
-            sleep(Duration::from_millis(8)).await;
+            let gamepads_map = watcher.borrow_and_update();
+            let gamepads: Vec<&GamepadState> = gamepads_map.values().collect();
+            gamepads.into_iter().for_each(|gamepad| {
+                executor.process_gamepad_state(gamepad);
+            });
         }
     }
 
-    fn process_gamepad_state(&mut self, gamepad: GamepadState) {
-        let now = Instant::now();
-        let delta_time = now.duration_since(self.last_frame_time).as_secs_f32();
-        self.last_frame_time = now;
-
+    fn process_gamepad_state(&mut self, gamepad: &GamepadState) {
         for mapping in self.config.mappings.clone().iter() {
             match mapping {
                 Mapping::ButtonPressed(mapping) => {
+                    if self.is_action_continuous(&mapping.action) {
+                        self.mapping_state
+                            .continuous_actions
+                            .insert(mapping.id.clone());
+                    }
+
                     let once = self.is_action_once(&mapping.action);
-                    self.process_button_mapping(&gamepad, mapping, once)
+                    self.process_button_mapping(gamepad, mapping, once)
                 }
                 Mapping::AxisTrigger(mapping) => {
-                    self.process_axis_trigger_mapping(&gamepad, mapping)
+                    if self.is_action_continuous(&mapping.action) {
+                        self.mapping_state
+                            .continuous_actions
+                            .insert(mapping.id.clone());
+                    }
+
+                    self.process_axis_trigger_mapping(gamepad, mapping)
                 }
                 Mapping::AxisStick(mapping) => {
-                    self.process_axis_stick_mapping(&gamepad, mapping, delta_time)
+                    if self.is_action_continuous(&mapping.action) {
+                        self.mapping_state
+                            .continuous_actions
+                            .insert(mapping.id.clone());
+                    }
+
+                    self.process_axis_stick_mapping(gamepad, mapping)
                 }
             }
         }
 
-        self.mapping_state.previous_gamepad_state = Some(gamepad);
+        self.mapping_state.previous_gamepad_state = Some(gamepad.clone());
     }
 
     fn process_button_mapping(
@@ -180,9 +200,12 @@ impl MappingExecutor {
 
             if should_execute {
                 self.execute_action(&mapping.action, Some(action_key.clone()));
+            } else {
+                self.mapping_state.continuous_actions.remove(&action_key);
             }
         } else {
-            // Bouton relâché ou condition non remplie
+            self.mapping_state.continuous_actions.remove(&action_key);
+
             if self.is_action_active(&action_key) {
                 self.execute_auto_reset_action(&mapping.action);
             }
@@ -200,7 +223,7 @@ impl MappingExecutor {
         mapping: &AxisTriggerMapping,
     ) {
         let axis_value = gamepad.axis().get(&mapping.axis).copied().unwrap_or(0);
-        let normalized_value = (axis_value.abs() as f32 / 32767.0) * 100.0;
+        let normalized_value = axis_value.abs() as f32 / 32767.0;
 
         let action_key = mapping.id.clone();
 
@@ -215,6 +238,8 @@ impl MappingExecutor {
             return self.execute_action(&mapping.action, Some(action_key.clone()));
         }
 
+        self.mapping_state.continuous_actions.remove(&action_key);
+
         if !self.is_action_active(&action_key) {
             return self.stop_action(&action_key);
         }
@@ -224,13 +249,27 @@ impl MappingExecutor {
         self.stop_action(&action_key);
     }
 
-    fn process_axis_stick_mapping(
-        &mut self,
-        gamepad: &GamepadState,
-        mapping: &AxisStickMapping,
-        delta_time: f32,
-    ) {
-        if !self.evaluate_conditions(gamepad, mapping.conditions.clone()) {
+    fn process_axis_stick_mapping(&mut self, gamepad: &GamepadState, mapping: &AxisStickMapping) {
+        let (axis_x, axis_y) = match mapping.stick {
+            StickType::LeftStick => (GamepadAxis::LeftX, GamepadAxis::LeftY),
+            StickType::RightStick => (GamepadAxis::RightX, GamepadAxis::RightY),
+        };
+
+        let ignore_deadzone = match mapping.action.clone() {
+            Action::MouseMoveStick { mode, .. } => mode == MouseMoveMode::Absolute,
+            _ => false,
+        };
+
+        let is_over_deadzone = ignore_deadzone
+            || self.stick_is_over_deadzone(
+                gamepad.axis().get(&axis_x).copied().unwrap_or(0),
+                gamepad.axis().get(&axis_y).copied().unwrap_or(0),
+            );
+
+        if !self.evaluate_conditions(gamepad, mapping.conditions.clone()) || !is_over_deadzone {
+            self.mapping_state
+                .continuous_actions
+                .remove(&mapping.id.clone());
             return;
         }
 
@@ -238,20 +277,15 @@ impl MappingExecutor {
             return;
         }
 
-        let (axis_x, axis_y) = match mapping.stick {
-            StickType::LeftStick => (GamepadAxis::LeftX, GamepadAxis::LeftY),
-            StickType::RightStick => (GamepadAxis::RightX, GamepadAxis::RightY),
-        };
-
         let x_value = gamepad.get_normalized_axis_value(&axis_x);
         let y_value = gamepad.get_normalized_axis_value(&axis_y);
 
         match &mapping.action {
             Action::MouseMoveStick { .. } => {
-                self.execute_mouse_move_stick(x_value, y_value, &mapping.action, delta_time);
+                self.execute_mouse_move_stick(x_value, y_value, &mapping.action);
             }
-            Action::ScrollStick => {
-                self.execute_scroll_stick(x_value, y_value, &mapping.action, delta_time);
+            Action::ScrollStick { .. } => {
+                self.execute_scroll_stick(x_value, y_value, &mapping.action);
             }
             _ => {}
         }
@@ -269,13 +303,8 @@ impl MappingExecutor {
             }
             Action::PressKeys { keys } => {
                 for key in keys.iter().rev() {
-                    if let Some(enigo_key) = get_enigo_key_from_str(key) {
-                        let _ = self.enigo.key(enigo_key, enigo::Direction::Release);
-                    }
+                    let _ = virtual_keyboard::release_key(key, &mut self.enigo);
                 }
-            }
-            Action::SetMouseSensitivity { .. } => {
-                self.reset_mouse_sensitivity();
             }
             _ => {}
         }
@@ -286,25 +315,23 @@ impl MappingExecutor {
             return true;
         }
 
-        let ors = conditions
+        let ors_res = conditions
             .clone()
             .into_iter()
-            .filter(|condition| matches!(condition, ConditionType::Or(_condition)));
+            .filter(|condition| matches!(condition, ConditionType::Or(_condition)))
+            .any(|condition| match condition {
+                ConditionType::Or(condition) => self.evaluate_condition(gamepad, &condition),
+                _ => false,
+            });
 
-        let ands = conditions
+        let ands_res = conditions
             .clone()
             .into_iter()
-            .filter(|condition| matches!(condition, ConditionType::And(_condition)));
-
-        let ors_res = ors.into_iter().any(|condition| match condition {
-            ConditionType::Or(condition) => self.evaluate_condition(gamepad, &condition),
-            _ => false,
-        });
-
-        let ands_res = ands.into_iter().all(|condition| match condition {
-            ConditionType::And(condition) => self.evaluate_condition(gamepad, &condition),
-            _ => false,
-        });
+            .filter(|condition| matches!(condition, ConditionType::And(_condition)))
+            .all(|condition| match condition {
+                ConditionType::And(condition) => self.evaluate_condition(gamepad, &condition),
+                _ => false,
+            });
 
         ors_res || ands_res
     }
@@ -333,9 +360,7 @@ impl MappingExecutor {
         match action {
             Action::PressKeys { keys } => {
                 for key in keys.iter() {
-                    if let Some(enigo_key) = get_enigo_key_from_str(key) {
-                        let _ = self.enigo.key(enigo_key, enigo::Direction::Press);
-                    }
+                    let _ = virtual_keyboard::press_key(key, &mut self.enigo, false);
                 }
             }
             Action::WriteText { text } => {
@@ -349,17 +374,11 @@ impl MappingExecutor {
                 };
                 let _ = self.enigo.button(enigo_button, enigo::Direction::Press);
             }
-            Action::MouseMoveDirection { direction } => {
-                self.execute_mouse_move_direction(direction);
+            Action::MouseMoveDirection { direction, speed } => {
+                self.execute_mouse_move_direction(direction, *speed);
             }
-            Action::ScrollDirection { direction } => {
-                self.execute_scroll_direction(
-                    direction,
-                    self.mapping_state.global_scroll_sensitivity,
-                );
-            }
-            Action::SetMouseSensitivity { sensitivity } => {
-                self.set_mouse_sensitivity(*sensitivity);
+            Action::ScrollDirection { direction, speed } => {
+                self.execute_scroll_direction(direction, *speed);
             }
             Action::OpenWebsite { url } => {
                 let _ = self.app.opener().open_url(url, None::<&str>);
@@ -377,29 +396,19 @@ impl MappingExecutor {
         }
     }
 
-    fn execute_mouse_move_stick(
-        &mut self,
-        x_value: f32,
-        y_value: f32,
-        action: &Action,
-        delta_time: f32,
-    ) {
-        // Vitesse en pixels par seconde (au lieu de pixels par frame)
-        let base_speed = self.mapping_state.current_mouse_sensitivity
-            * self.mapping_state.global_stick_sensitivity
-            * 100.0; // 100 pixels/sec à sensibilité 1.0
+    fn execute_mouse_move_stick(&mut self, x_value: f32, y_value: f32, action: &Action) {
+        let (mouse_mode, speed) = match action {
+            Action::MouseMoveStick { mode, speed } => (mode.to_owned(), speed),
+            _ => (MouseMoveMode::Relative, &0),
+        };
 
-        // Calculer le déplacement basé sur le temps écoulé
+        let base_speed = *speed as f32;
+
         let velocity_x = x_value * base_speed;
         let velocity_y = y_value * base_speed;
 
-        let delta_x = (velocity_x * delta_time) as i32;
-        let delta_y = (velocity_y * delta_time) as i32;
-
-        let mouse_mode = match action {
-            Action::MouseMoveStick { mode } => mode.to_owned(),
-            _ => MouseMoveMode::Relative,
-        };
+        let delta_x = velocity_x as i32;
+        let delta_y = velocity_y as i32;
 
         if (delta_x != 0 || delta_y != 0) && mouse_mode == MouseMoveMode::Relative {
             let _ = self.enigo.move_mouse(delta_x, delta_y, Coordinate::Rel);
@@ -428,87 +437,81 @@ impl MappingExecutor {
         }
     }
 
-    fn execute_scroll_stick(
-        &mut self,
-        x_value: f32,
-        y_value: f32,
-        _action: &Action,
-        delta_time: f32,
-    ) {
-        // Vitesse de scroll en unités par seconde
-        let base_scroll_speed = self.mapping_state.global_scroll_sensitivity * 10.0;
+    fn execute_scroll_stick(&mut self, x_value: f32, y_value: f32, action: &Action) {
+        let speed = match action {
+            Action::ScrollStick { speed } => *speed as f32 / 100.0,
+            _ => 0.0,
+        };
 
-        // Utiliser les valeurs brutes du stick (sans courbe de réponse)
-        let scroll_velocity_x = x_value * base_scroll_speed;
-        let scroll_velocity_y = y_value * base_scroll_speed;
+        let scroll_velocity_x = x_value * speed;
+        let scroll_velocity_y = y_value * speed;
 
-        // Accumuler les valeurs fractionnaires
-        self.scroll_accumulator_x += scroll_velocity_x * delta_time;
-        self.scroll_accumulator_y += scroll_velocity_y * delta_time;
+        self.scroll_accumulator_x += scroll_velocity_x;
+        self.scroll_accumulator_y += scroll_velocity_y;
 
-        // Traiter le scroll vertical
         if self.scroll_accumulator_y.abs() >= 1.0 {
             let scroll_amount = self.scroll_accumulator_y as i32;
             self.scroll_accumulator_y -= scroll_amount as f32;
 
             if scroll_amount != 0 {
-                // Garder le signe pour la direction
-                if scroll_amount != 0 {
-                    let _ = self.enigo.scroll(scroll_amount, Axis::Vertical);
-                }
+                let _ = self.enigo.scroll(scroll_amount, Axis::Vertical);
             }
         }
 
-        // Traiter le scroll horizontal
         if self.scroll_accumulator_x.abs() >= 1.0 {
             let scroll_amount = self.scroll_accumulator_x as i32;
             self.scroll_accumulator_x -= scroll_amount as f32;
 
             if scroll_amount != 0 {
-                // Garder le signe pour la direction
-                if scroll_amount > 0 {
-                    let _ = self.enigo.scroll(scroll_amount, Axis::Horizontal);
-                } else {
-                    let _ = self.enigo.scroll(-scroll_amount, Axis::Horizontal);
-                }
+                let _ = self.enigo.scroll(scroll_amount, Axis::Horizontal);
             }
         }
 
-        // Reset des accumulateurs si le stick est au centre (zone morte)
-        if x_value.abs() < 0.1 && y_value.abs() < 0.1 {
+        if x_value.abs() < self.config.deadzone && y_value.abs() < self.config.deadzone {
             self.scroll_accumulator_x = 0.0;
             self.scroll_accumulator_y = 0.0;
         }
     }
 
-    fn execute_mouse_move_direction(&mut self, direction: &Direction) {
+    fn execute_mouse_move_direction(&mut self, direction: &Direction, speed: u8) {
+        let speed_accumulator = speed as i32;
+
         let (dx, dy) = match direction {
-            Direction::Up => (0, -(self.mapping_state.current_mouse_sensitivity as i32)),
-            Direction::Down => (0, self.mapping_state.current_mouse_sensitivity as i32),
-            Direction::Left => (-(self.mapping_state.current_mouse_sensitivity as i32), 0),
-            Direction::Right => (self.mapping_state.current_mouse_sensitivity as i32, 0),
+            Direction::Up => (0, -(speed_accumulator)),
+            Direction::Down => (0, speed_accumulator),
+            Direction::Left => (-(speed_accumulator), 0),
+            Direction::Right => (speed_accumulator, 0),
         };
 
         let _ = self.enigo.move_mouse(dx, dy, Coordinate::Rel);
     }
 
-    fn execute_scroll_direction(&mut self, direction: &Direction, distance: f32) {
-        let scroll_amount = distance as i32;
+    fn execute_scroll_direction(&mut self, direction: &Direction, speed: u8) {
+        let speed = speed as f32 / 100.0;
 
         match direction {
-            Direction::Up => {
+            Direction::Up => self.scroll_accumulator_y -= speed,
+            Direction::Down => self.scroll_accumulator_y += speed,
+            Direction::Left => self.scroll_accumulator_x -= speed,
+            Direction::Right => self.scroll_accumulator_x += speed,
+        }
+
+        if self.scroll_accumulator_y.abs() >= 1.0 {
+            let scroll_amount = self.scroll_accumulator_y as i32;
+            self.scroll_accumulator_y -= scroll_amount as f32;
+
+            if scroll_amount != 0 {
                 let _ = self.enigo.scroll(scroll_amount, Axis::Vertical);
             }
-            Direction::Down => {
-                let _ = self.enigo.scroll(scroll_amount, Axis::Vertical);
-            }
-            Direction::Left => {
+        }
+
+        if self.scroll_accumulator_x.abs() >= 1.0 {
+            let scroll_amount = self.scroll_accumulator_x as i32;
+            self.scroll_accumulator_x -= scroll_amount as f32;
+
+            if scroll_amount != 0 {
                 let _ = self.enigo.scroll(scroll_amount, Axis::Horizontal);
             }
-            Direction::Right => {
-                let _ = self.enigo.scroll(scroll_amount, Axis::Horizontal);
-            }
-            _ => {}
         }
     }
 
@@ -518,8 +521,28 @@ impl MappingExecutor {
             Action::MouseMoveDirection { .. }
                 | Action::MouseMoveStick { .. }
                 | Action::ScrollDirection { .. }
-                | Action::ScrollStick
+                | Action::ScrollStick { .. }
         )
+    }
+
+    fn is_action_continuous(&self, action: &Action) -> bool {
+        matches!(
+            action,
+            Action::MouseMoveDirection { .. }
+                | Action::MouseMoveStick {
+                    mode: MouseMoveMode::Relative,
+                    ..
+                }
+                | Action::ScrollDirection { .. }
+                | Action::ScrollStick { .. }
+        )
+    }
+
+    fn stick_is_over_deadzone(&self, x_value: i16, y_value: i16) -> bool {
+        let normalized_x = x_value.abs() as f32 / 32767.0;
+        let normalized_y = y_value.abs() as f32 / 32767.0;
+
+        normalized_x > self.config.deadzone || normalized_y > self.config.deadzone
     }
 
     fn is_action_active(&self, action_key: &str) -> bool {
@@ -535,59 +558,8 @@ impl MappingExecutor {
     fn stop_action(&mut self, action_key: &str) {
         self.mapping_state.active_actions.remove(action_key);
     }
-
-    fn set_mouse_sensitivity(&mut self, sensitivity: f32) {
-        self.mapping_state.current_mouse_sensitivity = sensitivity;
-    }
-
-    fn reset_mouse_sensitivity(&mut self) {
-        self.mapping_state.current_mouse_sensitivity = self.mapping_state.default_mouse_sensitivity;
-    }
 }
 
-pub async fn start_mapping_system(app: AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    MappingExecutor::start_mapping_loop(app).await
-}
-
-fn get_enigo_key_from_str(key: &str) -> Option<Key> {
-    match key.to_lowercase().as_str() {
-        "" => None,
-        "meta" => Some(Key::Meta),
-        "backspace" => Some(Key::Backspace),
-        "tab" => Some(Key::Tab),
-        "enter" => Some(Key::Insert),
-        "shift" => Some(Key::Shift),
-        "ctrl" | "control" => Some(Key::Control),
-        "alt" => Some(Key::Alt),
-        "space" => Some(Key::Space),
-        "lock" => Some(Key::CapsLock),
-        "escape" => Some(Key::Escape),
-        "delete" => Some(Key::Delete),
-        "arrowleft" => Some(Key::LeftArrow),
-        "arrowright" => Some(Key::RightArrow),
-        "arrowup" => Some(Key::UpArrow),
-        "arrowdown" => Some(Key::DownArrow),
-        "prtscr" => Some(Key::PrintScr),
-        "mediaplaypause" => Some(Key::MediaPlayPause),
-        "mediastop" => Some(Key::MediaStop),
-        "mediatrackprevious" => Some(Key::MediaPrevTrack),
-        "mediatracknext" => Some(Key::MediaNextTrack),
-        "audiovolumemute" => Some(Key::VolumeMute),
-        "audiovolumedown" => Some(Key::VolumeDown),
-        "audiovolumeup" => Some(Key::VolumeUp),
-        "end" => Some(Key::End),
-        "f1" => Some(Key::F1),
-        "f2" => Some(Key::F2),
-        "f3" => Some(Key::F3),
-        "f4" => Some(Key::F4),
-        "f5" => Some(Key::F5),
-        "f6" => Some(Key::F6),
-        "f7" => Some(Key::F7),
-        "f8" => Some(Key::F8),
-        "f9" => Some(Key::F9),
-        "f10" => Some(Key::F10),
-        "f11" => Some(Key::F11),
-        "f12" => Some(Key::F12),
-        _ => Some(Key::Unicode(key.chars().next().unwrap())),
-    }
+pub async fn start_mapping_system() -> Result<(), Box<dyn std::error::Error>> {
+    MappingExecutor::start_mapping_loop().await
 }

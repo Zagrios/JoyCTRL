@@ -48,8 +48,8 @@ export default function App() {
         await lastValueFrom(ipc.send("toogle-mapping-active"));
     }, []);
 
-    const handleOpenKeyboard = useCallback(() => {
-        // TODO: Open virtual keyboard
+    const handleOpenKeyboard = useCallback(async () => {
+        await lastValueFrom(ipc.send("toogle-virtual-keyboard"));
     }, []);
 
   	return (

@@ -19,8 +19,8 @@ export function ButtonOpenFileActionBuilder({ className, gamepad, action: initia
     const [conditions, setConditions] = useState<ConditionType[]>(initialConditions ?? []);
 
     const hasChanged = useMemo(() => {
-        return !deepEqual(conditions, initialConditions) || !deepEqual(path, initialAction?.path);
-    }, [conditions, initialConditions, path, initialAction]);
+        return !deepEqual(path, initialAction?.path) || !deepEqual(conditions, initialConditions);
+    }, [path, conditions, initialAction, initialConditions]);
 
     const handleCancelEdit = useCallback(() => {
         setPath(() => initialAction?.path ?? "");

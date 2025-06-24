@@ -13,8 +13,8 @@ export function ButtonMouseClickActionBuilder({ className, gamepad, action: init
     const [conditions, setConditions] = useState<ConditionType[]>(initialConditions ?? []);
 
     const hasChanged = useMemo(() => {
-        return !deepEqual(conditions, initialConditions);
-    }, [conditions, initialConditions]);
+        return !deepEqual(mouseButton, initialAction?.button) || !deepEqual(conditions, initialConditions);
+    }, [mouseButton, conditions, initialConditions, initialAction]);
     
     const handleCancelEdit = useCallback(() => {
         setMouseButton(() => initialAction?.button ?? "left");

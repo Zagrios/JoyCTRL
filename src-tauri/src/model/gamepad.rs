@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use sdl2::controller::GameController;
+use sdl2::{controller::GameController, sensor::SensorType};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -106,7 +106,8 @@ impl GamepadState {
     }
 
     pub fn set_axis(&mut self, axis: GamepadAxis, value: i16) {
-        self.axis.insert(axis, value);
+        self.axis
+            .insert(axis, value.clamp(i16::MIN + 1, i16::MAX - 1)); // prevent overflow errors
     }
 
     pub fn id(&self) -> u32 {

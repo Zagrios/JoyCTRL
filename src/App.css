@@ -6,7 +6,7 @@
 }
 
 
-html, body, #root {
+html, body, #root, #keyboard {
     width: 100vw;
     height: 100vh;
     overflow: hidden;
@@ -16,12 +16,6 @@ html, body, #root {
 * {
     font-family: var(--font-quicksand);
     user-select: none;
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
 }
 
 .scrollbar-default {
@@ -38,4 +32,41 @@ html, body, #root {
         @apply bg-gray-500;
         border-radius: 999px;
       }
+}
+
+.simple-keyboard {
+    @apply size-full;
+
+    .hg-rows  {
+        @apply flex flex-col size-full gap-1;
+
+        .hg-row {
+            @apply flex flex-row grow gap-1;
+
+            .hg-button {
+                @apply flex items-center justify-center grow rounded-md bg-gray-300 transition-all duration-100 text-2xl font-bold;
+
+                &:hover {
+                    @apply bg-gray-400;
+                }
+
+                &:active {
+                    @apply scale-90;
+                }
+            }
+
+            .hg-button-space {
+                @apply grow basis-md;
+            }
+        }
+    }
+}
+
+.key-\{control\} .hg-button.hg-button-control,
+.key-\{shift\} .hg-button.hg-button-shift,
+.key-\{altgraph\} .hg-button.hg-button-altgraph,
+.key-\{meta\} .hg-button.hg-button-meta,
+.key-\{alt\} .hg-button.hg-button-alt,
+.key-\{lock\} .hg-button.hg-button-lock {
+    @apply !bg-gray-400;
 }

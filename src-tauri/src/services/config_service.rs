@@ -1,39 +1,37 @@
-use std::{
-    path::PathBuf,
-    sync::{Arc, OnceLock},
-};
-
-use serde::{Serialize, de::DeserializeOwned};
+use std::sync::{Arc, OnceLock};
 use tauri::{AppHandle, Wry};
-use tauri_plugin_store::{Store, StoreExt, resolve_store_path};
+use tauri_plugin_store::{Store, StoreExt};
 use tokio::sync::watch;
 
-use crate::model::config::Config;
+use crate::{get_app_handle, model::config::Config};
 
 const ROOT_KEY: &str = "config";
 
+static CONFIG_RECEIVER: OnceLock<watch::Receiver<Config>> = OnceLock::new();
 pub static CONFIG_SERVICE: OnceLock<ConfigService> = OnceLock::new();
 
 pub struct ConfigService {
-    app: AppHandle,
     store: Arc<Store<Wry>>,
     tx: watch::Sender<Config>,
 }
 
 impl ConfigService {
-    pub fn get_instance(app: &AppHandle) -> &'static ConfigService {
-        CONFIG_SERVICE.get_or_init(|| ConfigService::new(app.clone()))
+    pub fn get_instance() -> &'static ConfigService {
+        CONFIG_SERVICE.get_or_init(|| ConfigService::new(get_app_handle()))
     }
 
     pub fn new(app: AppHandle) -> Self {
         let store = app.store("config.cfg").unwrap();
-        let (tx, _) = watch::channel(
+        let (tx, rx) = watch::channel(
             store
                 .get(ROOT_KEY)
                 .map(|value| serde_json::from_value(value).unwrap_or(Config::default()))
                 .unwrap_or(Config::default()),
         );
-        Self { app, store, tx }
+
+        let _ = CONFIG_RECEIVER.set(rx);
+
+        Self { store, tx }
     }
 
     pub fn get_config(&self) -> Config {

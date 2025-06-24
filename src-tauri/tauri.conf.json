@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "JoyCTRL",
         "width": 900,
         "height": 600,

@@ -21,7 +21,7 @@ export class IpcService {
 	public send<C extends IpcChannels>(channel: C, data?: IpcRequestType<C>): Observable<IpcResponseType<C>> {
 		return new Observable<IpcResponseType<C>>(observer => {
 
-			const uuid = Math.random().toString(36).substring(2, 15);
+			const uuid = channel + "_" + Math.random().toString(36).substring(2, 15);
 
 			const request: IpcRequest = {
 				channel,
@@ -29,9 +29,9 @@ export class IpcService {
 				data,
 			};
 
-			const dataChannel = `${request.stream_uuid}_data`;
-			const errorChannel = `${request.stream_uuid}_error`;
-			const closeChannel = `${request.stream_uuid}_close`;
+			const dataChannel = `${uuid}_data`;
+			const errorChannel = `${uuid}_error`;
+			const closeChannel = `${uuid}_close`;
 
 			const unlistenResp = listen(dataChannel, event => {
 				observer.next(event.payload as IpcResponseType<C>);
@@ -42,6 +42,7 @@ export class IpcService {
 			});
 
 			const unlistenClose = listen(closeChannel, () => {
+                observer.next(void 0);
 				observer.complete();
 			});
 

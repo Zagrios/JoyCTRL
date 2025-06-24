@@ -11,6 +11,7 @@ import { distinctUntilChanged, map } from 'rxjs'
 import { deepEqual } from 'fast-equals'
 import { ButtonMappingModal } from './button-mapping-modal.component'
 import { MappingsService } from '../../services/mappings.service'
+import { StickMappingModal } from './stick-mapping-modal.component'
 
 export const ChooseGamepadControl: ModalComponent<{axis: GamepadAxis, button: GamepadButton}, Gamepad> = ({ resolver, options: { data: gamepad } }) => {
 
@@ -48,9 +49,7 @@ export const ChooseGamepadControl: ModalComponent<{axis: GamepadAxis, button: Ga
     }, [gamepad])
 
     const openButtonMappingModal = useCallback(async (button: GamepadButton) => {
-        console.log(gamepad, button)
-
-        if(!gamepad || !button){
+        if(!gamepad){
             return;
         }
 
@@ -62,6 +61,19 @@ export const ChooseGamepadControl: ModalComponent<{axis: GamepadAxis, button: Ga
         })
     }, [gamepad, mappings])
 
+    const openStickMappingModal = useCallback(async (stick: StickType) => {
+        if(!gamepad){
+            return;
+        }
+
+        await modal.openModal(StickMappingModal, {
+            data: {
+                gamepad,
+                stick,
+            }
+        })
+    }, [gamepad, mappings])
+
     return (
         <div className="flex flex-col h-full">
             <ModalTitle title="Mappings" onBack={() => resolver({ exitCode: ModalExitCode.CLOSED })}/>
@@ -69,7 +81,7 @@ export const ChooseGamepadControl: ModalComponent<{axis: GamepadAxis, button: Ga
                 <span className="block rounded-md font-bold m-2 px-1.5">Axis</span>
                 {sitcks.map(stick => {
                     return (
-                        <div key={stick} className="flex flex-row justify-between bg-gray-200 mx-2 rounded-md p-2 cursor-pointer transition-colors hover:bg-gray-300">
+                        <div key={stick} className="flex flex-row justify-between bg-gray-200 mx-2 rounded-md p-2 cursor-pointer transition-colors hover:bg-gray-300" role="button" onClick={() => openStickMappingModal(stick)}>
                             <div className='flex flex-col'>
                                 <span>{stick}</span>
                                 <span className='text-sm text-gray-500'>{mappings?.sticks?.[stick]?.length ?? 0} mappings</span>

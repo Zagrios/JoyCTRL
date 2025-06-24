@@ -6,6 +6,7 @@
 Transform your game controller into a PC remote control. JoyCTRL lets you create custom button mappings and automate everything on your computer using any compatible gamepad.
 
 ## Early preview (Will change)
+![omg](https://github.com/user-attachments/assets/c88d413a-edf3-46b6-aa88-b29e1edb25ca)
 
 ## 🎮 Features
 
@@ -80,8 +81,9 @@ This project is under active development. Contributions, bug reports, and featur
 
 ### **Current TODOs**
 - [ ] Default mappings on first start
-- [ ] Axis mapping
+- [ ] Triggers mapping
 - [ ] Sticks mapping
+- [ ] Gyroscope mapping
 - [ ] Virtual keyboard window
 - [ ] Translations
 

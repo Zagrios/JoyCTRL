@@ -8,8 +8,12 @@ import { useOnKeyUp } from "../../hooks/use-on-key-up.hook";
 import { Tooltip } from "react-tooltip";
 import { PlayFillIcon } from "../icons/play-fill-icon.component";
 import { StopFillIcon } from "../icons/stop-fill-icon.component";
+import { useService } from "../../hooks/use-service.hook";
+import { IpcService } from "../../services/ipc.service";
 
 export function ButtonPressKeyActionBuilder({ className, gamepad, action: initialAction, conditions: initialConditions, onSave, onDelete }: ActionBuilderProps<"pressKeys">) {
+
+    const ipc = useService(IpcService);
 
     const isEdit = useConstant<boolean>(() => !!initialAction || !!initialConditions?.length);
 
@@ -31,6 +35,13 @@ export function ButtonPressKeyActionBuilder({ className, gamepad, action: initia
     });
 
     useEffect(() => {
+
+        const sub = isRecording ? ipc.send("on-vk-key-pressed").subscribe(key => {
+            if(!keys.includes(key)) {
+                setKeys(prev => [...prev, key]);
+            }
+        }) : null;
+
         if(isRecording) {
             document.addEventListener("keydown", recordListener);
 
@@ -40,6 +51,7 @@ export function ButtonPressKeyActionBuilder({ className, gamepad, action: initia
 
         return () => {
             document.removeEventListener("keydown", recordListener);
+            sub?.unsubscribe();
         }
     }, [isRecording]);
 
@@ -47,8 +59,8 @@ export function ButtonPressKeyActionBuilder({ className, gamepad, action: initia
     useOnKeyUp("ButtonPressKeyActionBuilder", e => e?.preventDefault(), ["Escape"]);
 
     const hasChanged = useMemo(() => {
-        return !deepEqual(conditions, initialConditions) || !deepEqual(keys, initialAction?.keys);
-    }, [conditions, initialConditions, keys, initialAction]);
+        return !deepEqual(keys, initialAction?.keys) || !deepEqual(conditions, initialConditions);
+    }, [keys, conditions, initialAction, initialConditions]);
 
     const handleCancelEdit = useCallback(() => {
         setKeys(() => initialAction?.keys ?? []);

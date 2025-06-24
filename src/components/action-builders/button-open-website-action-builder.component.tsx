@@ -26,8 +26,8 @@ export function ButtonOpenWebsiteActionBuilder({ className, gamepad, action: ini
     }, [url]);
 
     const hasChanged = useMemo(() => {
-        return !deepEqual(conditions, initialConditions) || !deepEqual(url, initialAction?.url);
-    }, [conditions, initialConditions, url, initialAction]);
+        return !deepEqual(url, initialAction?.url) || !deepEqual(conditions, initialConditions);
+    }, [url, conditions, initialAction, initialConditions]);
 
     const handleCancelEdit = useCallback(() => {
         setUrl(() => initialAction?.url ?? "");

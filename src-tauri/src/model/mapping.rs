@@ -39,21 +39,20 @@ pub enum Action {
     WriteText { text: String },
 
     // Mouse actions - for buttons (with direction)
-    MouseMoveDirection { direction: Direction },
+    MouseMoveDirection { direction: Direction, speed: u8 },
     MouseClick { button: MouseButton },
 
     // Mouse actions - for sticks (all directions)
-    MouseMoveStick { mode: MouseMoveMode },
+    MouseMoveStick { mode: MouseMoveMode, speed: u8 },
 
     // Scroll actions - for buttons (with direction)
-    ScrollDirection { direction: Direction },
+    ScrollDirection { direction: Direction, speed: u8 },
 
     // Scroll actions - for sticks (all directions)
-    ScrollStick,
+    ScrollStick { speed: u8 },
 
     // App actions
     ToogleMappingActive,
-    SetMouseSensitivity { sensitivity: f32 },
 
     // System actions
     OpenWebsite { url: String },
@@ -83,8 +82,8 @@ pub enum Direction {
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/ts/bindings/mapping.ts")]
 pub enum MouseMoveMode {
-    Relative, // Comportement souris normal
-    Absolute, // Position stick mappée sur écran
+    Relative,
+    Absolute,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

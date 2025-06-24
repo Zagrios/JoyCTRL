@@ -48,11 +48,11 @@ export class Gamepad {
     }
 
     public brand(): GamepadBrand {
-        if(this.state$.value.name.toLowerCase().includes("xbox")) {
+        const name = this.state$.value.name.toLowerCase();
+
+        if(name.includes("xbox")) {
             return GamepadBrand.Xbox;
-        } else if (this.state$.value.name.toLowerCase().includes("dualsense")) {
-            return GamepadBrand.Sony;
-        } else if (this.state$.value.name.toLowerCase().includes("dualshock")) {
+        } else if (name.includes("dualsense") || name.includes("ps4") || name.includes("ps5") || name.includes("sony")) {
             return GamepadBrand.Sony;
         }
         return GamepadBrand.Unknown;

@@ -16,6 +16,7 @@ import { ButtonWriteTextActionBuilder } from "../action-builders/button-write-te
 import { ButtonOpenWebsiteActionBuilder } from "../action-builders/button-open-website-action-builder.component";
 import { ButtonOpenFileActionBuilder } from "../action-builders/button-open-file-action-builder.component";
 import { ButtonPauseResumeActionBuilder } from "../action-builders/button-pause-resume-action-builder.component";
+import { ButtonMouseScrollActionBuilder } from "../action-builders/button-mouse-scroll-action-builder.component";
 
 type ReturnMapping = Omit<ButtonMapping, "id" | "button">;
 
@@ -24,7 +25,7 @@ export const ButtonActionModal: ModalComponent<ReturnMapping, Gamepad> = ({ reso
     const modalRef = useRef<HTMLDivElement>(null);
     const [ActionBuilder, setActionBuilder] = useState<ActionBuilder<Action["type"]> | undefined>();
 
-    useOnKeyUp("mouse-move-modal", () => {
+    useOnKeyUp("button-action-modal", () => {
         if (ActionBuilder) {
             return setActionBuilder(() => undefined);
         }
@@ -47,11 +48,15 @@ export const ButtonActionModal: ModalComponent<ReturnMapping, Gamepad> = ({ reso
                     <span className="block rounded-md font-bold mx-2 mt-2 px-1.5">Mouse</span>
                         <div className="flex flex-col gap-1">
                             <div className="bg-gray-200 rounded-md p-2 mx-2 cursor-pointer hover:bg-gray-300 transition-colors" role="button" onClick={() => setActionBuilder(() => ButtonMouseMoveActionBuilder as ActionBuilder<Action["type"]>)}>
-                                <h2 className="inline">Mouse move</h2>
+                                <h2 className="inline">Move cursor</h2>
                                 <span className="float-right size-6"><ChevronForwardIcon className="size-full"/></span>
                             </div>
                             <div className="bg-gray-200 rounded-md p-2 mx-2 cursor-pointer hover:bg-gray-300 transition-colors" role="button" onClick={() => setActionBuilder(() => ButtonMouseClickActionBuilder as ActionBuilder<Action["type"]>)}>
-                                <h2 className="inline">Mouse click</h2>
+                                <h2 className="inline">Click mouse</h2>
+                                <span className="float-right size-6"><ChevronForwardIcon className="size-full"/></span>
+                            </div>
+                            <div className="bg-gray-200 rounded-md p-2 mx-2 cursor-pointer hover:bg-gray-300 transition-colors" role="button" onClick={() => setActionBuilder(() => ButtonMouseScrollActionBuilder as ActionBuilder<Action["type"]>)}>
+                                <h2 className="inline">Scroll</h2>
                                 <span className="float-right size-6"><ChevronForwardIcon className="size-full"/></span>
                             </div>
                         </div>  
@@ -92,17 +97,17 @@ export const ButtonActionModal: ModalComponent<ReturnMapping, Gamepad> = ({ reso
             </div>
 
             <AnimatePresence>
-                    {ActionBuilder && (
-                        <>
-                            <motion.span className="absolute top-0 left-0 block size-full bg-black" initial={{ opacity: 0 }} animate={{ opacity: .5 }} exit={{ opacity: 0 }}/>
-                            <motion.div className="absolute size-full flex items-center justify-center top-0 left-0" initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}>
-                                <div className="contents" ref={modalRef}>
-                                    {ActionBuilder && <ActionBuilder className="w-full mx-4 h-fit bg-gray-200 rounded-md p-2 shadow-xl shadow-black/50" gamepad={gamepad} onSave={handleSaveAction} />}
-                                </div>
-                            </motion.div>
-                        </>
-                    )}
-                </AnimatePresence>
+                {ActionBuilder && (
+                    <>
+                        <motion.span className="absolute top-0 left-0 block size-full bg-black" initial={{ opacity: 0 }} animate={{ opacity: .5 }} exit={{ opacity: 0 }}/>
+                        <motion.div className="absolute size-full flex items-center justify-center top-0 left-0" initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}>
+                            <div className="contents" ref={modalRef}>
+                                {ActionBuilder && <ActionBuilder className="w-full mx-4 h-fit bg-gray-200 rounded-md p-2 shadow-xl shadow-black/50" gamepad={gamepad} onSave={handleSaveAction} />}
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
             
         </div>
     )

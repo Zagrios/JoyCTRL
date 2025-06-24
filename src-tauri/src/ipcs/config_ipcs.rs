@@ -1,16 +1,15 @@
 use std::error::Error;
 
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
 
 use crate::services::{
     config_service::ConfigService,
     ipc_service::{IpcReplier, IpcService},
 };
 
-pub async fn register(app: &AppHandle) {
+pub async fn register() {
     let ipc = IpcService::get_instance();
-    let config = ConfigService::get_instance(app);
+    let config = ConfigService::get_instance();
 
     ipc.on(
         "get-config",
