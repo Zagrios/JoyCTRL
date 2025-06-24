@@ -42,6 +42,7 @@ export class IpcService {
 			});
 
 			const unlistenClose = listen(closeChannel, () => {
+                observer.next(void 0);
 				observer.complete();
 			});
 

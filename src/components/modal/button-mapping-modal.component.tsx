@@ -15,6 +15,7 @@ import { ButtonWriteTextActionBuilder } from "../action-builders/button-write-te
 import { ButtonOpenWebsiteActionBuilder } from "../action-builders/button-open-website-action-builder.component";
 import { ButtonOpenFileActionBuilder } from "../action-builders/button-open-file-action-builder.component";
 import { ButtonPauseResumeActionBuilder } from "../action-builders/button-pause-resume-action-builder.component";
+import { ButtonMouseScrollActionBuilder } from "../action-builders/button-mouse-scroll-action-builder.component";
 
 export const ButtonMappingModal: ModalComponent<void, {gamepad: Gamepad, button: GamepadButton}> = ({ resolver, options }) => {
     const { gamepad, button } = options?.data || {};
@@ -64,6 +65,8 @@ export const ButtonMappingModal: ModalComponent<void, {gamepad: Gamepad, button:
                 return <ButtonMouseMoveActionBuilder {...commonProps} action={mapping.action} />;
             case "mouseClick":
                 return <ButtonMouseClickActionBuilder {...commonProps} action={mapping.action} />;
+            case "scrollDirection":
+                return <ButtonMouseScrollActionBuilder {...commonProps} action={mapping.action} />;
             case "pressKeys":
                 return <ButtonPressKeyActionBuilder {...commonProps} action={mapping.action} />;
             case "writeText":

@@ -15,16 +15,20 @@ name = "joyctrl_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.2.0", features = [] }
+tauri-build = { version = "2.3.0", features = [] }
 
 [dependencies]
 ts-rs = "11.0.1"
-tauri = { version = "2.5.1", features = [] }
-tauri-plugin-opener = "2.3.0"
+tauri = { version = "2.6.2", features = ["tray-icon"] }
+tauri-plugin-opener = "2.4.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
-tokio = { version = "1.45.1", features = ["full"] }
+tokio = { version = "1.46.0", features = ["full"] }
 sdl2 = { git = "https://github.com/Rust-SDL2/rust-sdl2.git", branch = "master", features = ["bundled", "hidapi"] }
 enigo = "0.5.0"
-tauri-plugin-store = "2.2.1"
-tauri-plugin-dialog = "2.2.2"
+tauri-plugin-store = "2.3.0"
+tauri-plugin-dialog = "2.3.0"
+windows = "0.61.3"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2.3.0"

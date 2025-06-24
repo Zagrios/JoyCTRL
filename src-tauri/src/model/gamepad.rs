@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use sdl2::controller::GameController;
+use sdl2::{controller::GameController, sensor::SensorType};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 

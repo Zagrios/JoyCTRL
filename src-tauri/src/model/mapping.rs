@@ -83,8 +83,8 @@ pub enum Direction {
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/ts/bindings/mapping.ts")]
 pub enum MouseMoveMode {
-    Relative, // Comportement souris normal
-    Absolute, // Position stick mappée sur écran
+    Relative,
+    Absolute,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

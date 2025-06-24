@@ -16,6 +16,7 @@ import { ButtonWriteTextActionBuilder } from "../action-builders/button-write-te
 import { ButtonOpenWebsiteActionBuilder } from "../action-builders/button-open-website-action-builder.component";
 import { ButtonOpenFileActionBuilder } from "../action-builders/button-open-file-action-builder.component";
 import { ButtonPauseResumeActionBuilder } from "../action-builders/button-pause-resume-action-builder.component";
+import { ButtonMouseScrollActionBuilder } from "../action-builders/button-mouse-scroll-action-builder.component";
 
 type ReturnMapping = Omit<ButtonMapping, "id" | "button">;
 
@@ -52,6 +53,10 @@ export const ButtonActionModal: ModalComponent<ReturnMapping, Gamepad> = ({ reso
                             </div>
                             <div className="bg-gray-200 rounded-md p-2 mx-2 cursor-pointer hover:bg-gray-300 transition-colors" role="button" onClick={() => setActionBuilder(() => ButtonMouseClickActionBuilder as ActionBuilder<Action["type"]>)}>
                                 <h2 className="inline">Mouse click</h2>
+                                <span className="float-right size-6"><ChevronForwardIcon className="size-full"/></span>
+                            </div>
+                            <div className="bg-gray-200 rounded-md p-2 mx-2 cursor-pointer hover:bg-gray-300 transition-colors" role="button" onClick={() => setActionBuilder(() => ButtonMouseScrollActionBuilder as ActionBuilder<Action["type"]>)}>
+                                <h2 className="inline">Mouse scroll</h2>
                                 <span className="float-right size-6"><ChevronForwardIcon className="size-full"/></span>
                             </div>
                         </div>  
