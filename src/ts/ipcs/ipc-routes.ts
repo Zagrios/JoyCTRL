@@ -9,6 +9,9 @@ export interface IpcChannelMapping {
         "open-file": { request: void; response: string | null }
         "toogle-mapping-active": { request: void; response: void }
         "is-mapping-active": { request: void; response: boolean }
+        "toogle-virtual-keyboard": { request: void; response: void }
+        "press-key": { request: string; response: void }
+        "release-key": { request: string; response: void }
 }
 
 export type IpcRequestType<Channel extends keyof IpcChannelMapping> = IpcChannelMapping[Channel]["request"];

@@ -8,6 +8,7 @@ use sdl2::{
     EventPump, GameControllerSubsystem, Sdl, VideoSubsystem,
     controller::{Axis, Button, GameController},
     event::Event,
+    sensor::SensorType,
 };
 use tokio::sync::watch;
 
@@ -120,6 +121,7 @@ impl GamepadsMonitor {
                 }
                 Event::ControllerDeviceAdded { .. } => {
                     if let Ok(gamepad) = self.add_device() {
+                        println!("Gamepad added: {}", gamepad.id());
                         state.gamepads.insert(gamepad.id(), gamepad);
                         state.broadcast(state.gamepads.clone());
                     }

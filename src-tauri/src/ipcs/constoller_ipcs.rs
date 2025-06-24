@@ -8,7 +8,6 @@ use crate::{
 use std::error::Error;
 
 pub async fn register() {
-    // Obtenir le service IPC (maintenant clonable)
     let ipc = IpcService::get_instance();
 
     ipc.on(
@@ -29,7 +28,6 @@ pub async fn register() {
 
             tokio::select! {
                 _ = async {
-                    // Encore une boucle mais isolée dans la future
                     loop {
                         match watcher.changed().await {
                             Ok(()) => {

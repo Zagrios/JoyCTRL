@@ -25,7 +25,6 @@ pub async fn joyctrl_ipc(app: AppHandle, request: IpcRequest) {
     }
 }
 
-// Type pour les callbacks IPC
 type IpcCallback = Arc<
     dyn Fn(
             IpcRequestData,
@@ -35,7 +34,6 @@ type IpcCallback = Arc<
         + Sync,
 >;
 
-// Structure interne contenant l'état partagé
 struct IpcServiceState {
     listeners: HashMap<String, IpcCallback>,
     repliers: HashMap<String, IpcReplier>,
@@ -50,7 +48,6 @@ impl IpcServiceState {
     }
 }
 
-// Service IPC principal, clonable avec état partagé
 #[derive(Clone)]
 pub struct IpcService {
     state: Arc<RwLock<IpcServiceState>>,
@@ -82,7 +79,6 @@ impl IpcService {
     }
 
     pub async fn trigger(&self, app: AppHandle, request: IpcRequest) {
-        // Cloner ce dont on aura besoin dans la tâche async
         let state = self.state.clone();
         let channel = request.channel.clone();
 
@@ -105,7 +101,6 @@ impl IpcService {
         let error_channel = request.get_error_channel();
         let data = request.data.clone();
 
-        // Créer le replier et l'ajouter à l'état partagé
         let replier = IpcReplier::new(app.clone(), &data_channel);
 
         {
