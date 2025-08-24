@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use sdl2::{controller::GameController, sensor::SensorType};
+use sdl3::{gamepad::Gamepad, sensor::SensorType};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -97,8 +97,17 @@ impl GamepadState {
         }
     }
 
-    pub fn from_sdl_gamepad(gamepad: &GameController) -> Self {
-        Self::new(gamepad.instance_id(), gamepad.name())
+    pub fn from_sdl_gamepad(gamepad: &Gamepad) -> Self {
+        unsafe {
+            println!(
+                "Gamepad has gyro: {:?}",
+                gamepad.has_sensor(SensorType::Gyroscope)
+            );
+        }
+
+        Self::new(gamepad.id().unwrap(), gamepad.name().unwrap())
+
+        // print support hidapi
     }
 
     pub fn set_button(&mut self, button: GamepadButton, pressed: bool) {

@@ -15,8 +15,9 @@ import { ButtonPressKeyActionBuilder } from "../action-builders/button-press-key
 import { ButtonWriteTextActionBuilder } from "../action-builders/button-write-text-action-builder.component";
 import { ButtonOpenWebsiteActionBuilder } from "../action-builders/button-open-website-action-builder.component";
 import { ButtonOpenFileActionBuilder } from "../action-builders/button-open-file-action-builder.component";
-import { ButtonPauseResumeActionBuilder } from "../action-builders/button-pause-resume-action-builder.component";
 import { ButtonMouseScrollActionBuilder } from "../action-builders/button-mouse-scroll-action-builder.component";
+import { ButtonPauseResumeActionBuilder } from "../action-builders/button-pause-resume-action-builder.component";
+import { ToogleVirtualKeyboardActionBuilder } from "../action-builders/toogle-virtual-keyboard-action-builder.component";
 
 type ReturnMapping = Omit<ButtonMapping, "id" | "button">;
 
@@ -88,8 +89,8 @@ export const ButtonActionModal: ModalComponent<ReturnMapping, Gamepad> = ({ reso
                                 <h2 className="inline">Pause / Resume</h2>
                                 <span className="float-right size-6"><ChevronForwardIcon className="size-full"/></span>
                             </div>
-                            <div className="bg-gray-200 rounded-md p-2 mx-2 cursor-pointer hover:bg-gray-300 transition-colors" role="button" onClick={() => setActionBuilder(() => ButtonPauseResumeActionBuilder as ActionBuilder<Action["type"]>)}>
-                                <h2 className="inline">Open virtual keyboard</h2>
+                            <div className="bg-gray-200 rounded-md p-2 mx-2 cursor-pointer hover:bg-gray-300 transition-colors" role="button" onClick={() => setActionBuilder(() => ToogleVirtualKeyboardActionBuilder as ActionBuilder<Action["type"]>)}>
+                                <h2 className="inline">Toogle virtual keyboard</h2>
                                 <span className="float-right size-6"><ChevronForwardIcon className="size-full"/></span>
                             </div>
                         </div>

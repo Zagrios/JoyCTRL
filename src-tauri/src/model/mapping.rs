@@ -30,7 +30,7 @@ pub enum ConditionType {
     Or(Condition),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, TS)]
 #[serde(tag = "type", rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/ts/bindings/mapping.ts")]
 pub enum Action {
@@ -53,13 +53,14 @@ pub enum Action {
 
     // App actions
     ToogleMappingActive,
+    ToogleVirtualKeyboard,
 
     // System actions
     OpenWebsite { url: String },
     OpenFile { path: PathBuf },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/ts/bindings/mapping.ts")]
 pub enum MouseButton {
@@ -68,7 +69,7 @@ pub enum MouseButton {
     Middle,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/ts/bindings/mapping.ts")]
 pub enum Direction {
@@ -78,7 +79,7 @@ pub enum Direction {
     Right,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/ts/bindings/mapping.ts")]
 pub enum MouseMoveMode {
@@ -86,7 +87,7 @@ pub enum MouseMoveMode {
     Absolute,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/ts/bindings/mapping.ts")]
 pub enum StickType {

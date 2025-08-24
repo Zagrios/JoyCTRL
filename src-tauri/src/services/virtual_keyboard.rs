@@ -111,8 +111,12 @@ pub fn release_all_keys(enigo: &mut Enigo) -> Result<(), Box<dyn std::error::Err
 pub fn toogle_vk_window(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let keyboard_window = app.get_webview_window(VK_WINDOW_NAME);
 
-    if let Some(keyboard_window) = keyboard_window {
-        return keyboard_window.destroy().map_err(|e| e.into());
+    if let Some(w) = keyboard_window {
+        let res = match w.is_visible().unwrap_or(false) {
+            true => w.hide(),
+            false => w.show(),
+        };
+        return res.map_err(Into::into);
     }
 
     let cursor_position = app.cursor_position()?;

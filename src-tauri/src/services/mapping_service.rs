@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::{
-    get_app_handle,
+    APP, get_app_handle,
     model::{
         config::Config,
         gamepad::{GamepadAxis, GamepadState},
@@ -99,9 +99,16 @@ impl MappingExecutor {
         let mut watcher = { GAMEPAD_STATE.read().unwrap().watch_gamepads() };
 
         loop {
-            if !MAPPING_ACTIVE.load(Ordering::Relaxed) {
+            let mapping_active = MAPPING_ACTIVE.load(Ordering::Relaxed);
+
+            let allowed_actions = if mapping_active {
+                None
+            } else {
+                Some(vec![Action::ToogleMappingActive])
+            };
+
+            if !mapping_active {
                 sleep(Duration::from_millis(100)).await;
-                continue;
             }
 
             let has_continuous_actions = !executor.mapping_state.continuous_actions.is_empty();
@@ -123,13 +130,29 @@ impl MappingExecutor {
             let gamepads_map = watcher.borrow_and_update();
             let gamepads: Vec<&GamepadState> = gamepads_map.values().collect();
             gamepads.into_iter().for_each(|gamepad| {
-                executor.process_gamepad_state(gamepad);
+                executor.process_gamepad_state(gamepad, &allowed_actions);
             });
         }
     }
 
-    fn process_gamepad_state(&mut self, gamepad: &GamepadState) {
+    fn process_gamepad_state(
+        &mut self,
+        gamepad: &GamepadState,
+        allowed_actions: &Option<Vec<Action>>,
+    ) {
         for mapping in self.config.mappings.clone().iter() {
+            if let Some(allowed_actions) = allowed_actions {
+                let action = match mapping {
+                    Mapping::ButtonPressed(mapping) => &mapping.action,
+                    Mapping::AxisTrigger(mapping) => &mapping.action,
+                    Mapping::AxisStick(mapping) => &mapping.action,
+                };
+
+                if !allowed_actions.contains(&action) {
+                    continue;
+                }
+            }
+
             match mapping {
                 Mapping::ButtonPressed(mapping) => {
                     if self.is_action_continuous(&mapping.action) {
@@ -390,7 +413,9 @@ impl MappingExecutor {
             Action::ToogleMappingActive => {
                 let set = !MAPPING_ACTIVE.load(Ordering::Relaxed);
                 set_mapping_active(set);
-                println!("Set mapping active: {}", set);
+            }
+            Action::ToogleVirtualKeyboard => {
+                let _ = virtual_keyboard::toogle_vk_window(&get_app_handle());
             }
             _ => {}
         }
@@ -428,12 +453,12 @@ impl MappingExecutor {
 
             let screen_size = screen_size.unwrap().unwrap();
 
-            let target_x = ((x_value * 1.314 + 1.0) / 2.0) * screen_size.size().width as f32;
-            let target_y = ((y_value * 1.314 + 1.0) / 2.0) * screen_size.size().height as f32;
+            let target_x = (((x_value * 1.314159 + 1.0) / 2.0) * screen_size.size().width as f32)
+                .round() as i32;
+            let target_y = (((y_value * 1.314159 + 1.0) / 2.0) * screen_size.size().height as f32)
+                .round() as i32;
 
-            let _ = self
-                .enigo
-                .move_mouse(target_x as i32, target_y as i32, Coordinate::Abs);
+            let _ = self.enigo.move_mouse(target_x, target_y, Coordinate::Abs);
         }
     }
 

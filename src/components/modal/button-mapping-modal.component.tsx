@@ -16,6 +16,7 @@ import { ButtonOpenWebsiteActionBuilder } from "../action-builders/button-open-w
 import { ButtonOpenFileActionBuilder } from "../action-builders/button-open-file-action-builder.component";
 import { ButtonPauseResumeActionBuilder } from "../action-builders/button-pause-resume-action-builder.component";
 import { ButtonMouseScrollActionBuilder } from "../action-builders/button-mouse-scroll-action-builder.component";
+import { ToogleVirtualKeyboardActionBuilder } from "../action-builders/toogle-virtual-keyboard-action-builder.component";
 
 export const ButtonMappingModal: ModalComponent<void, {gamepad: Gamepad, button: GamepadButton}> = ({ resolver, options }) => {
     const { gamepad, button } = options?.data || {};
@@ -79,6 +80,8 @@ export const ButtonMappingModal: ModalComponent<void, {gamepad: Gamepad, button:
                 return <ButtonOpenFileActionBuilder {...commonProps} action={mapping.action} />;
             case "toogleMappingActive":
                 return <ButtonPauseResumeActionBuilder {...commonProps} action={mapping.action} />;
+            case "toogleVirtualKeyboard":
+                return <ToogleVirtualKeyboardActionBuilder {...commonProps} action={mapping.action} />;
             default:
                 return null;
         }

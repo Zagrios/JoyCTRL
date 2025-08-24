@@ -1,13 +1,12 @@
+use sdl3::{
+    EventPump, GamepadSubsystem, Sdl,
+    event::Event,
+    gamepad::{Axis, Button, Gamepad},
+};
 use std::{
     collections::HashMap,
     error::Error,
     sync::{Arc, LazyLock, OnceLock, RwLock},
-};
-
-use sdl2::{
-    EventPump, GameControllerSubsystem, Sdl, VideoSubsystem,
-    controller::{Axis, Button, GameController},
-    event::Event,
 };
 use tokio::sync::watch;
 
@@ -57,27 +56,18 @@ impl GamepadsState {
 }
 struct GamepadsMonitor {
     sdl_context: Sdl,
-    controller_subsystem: GameControllerSubsystem,
-    video_subsystem: VideoSubsystem,
-    gamepads: HashMap<u32, GameController>,
+    controller_subsystem: GamepadSubsystem,
+    gamepads: HashMap<u32, Gamepad>,
 }
 
 impl GamepadsMonitor {
     pub fn new() -> Result<Self, Box<dyn Error>> {
-        sdl2::hint::set("SDL_INIT_GAMEPAD", "1");
-        sdl2::hint::set("SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1");
-        sdl2::hint::set("SDL_JOYSTICK_THREAD", "1");
-
-        let sdl_context = sdl2::init().map_err(|e| format!("Échec d'initialisation SDL: {}", e))?;
-        let controller_subsystem = sdl_context
-            .game_controller()
-            .map_err(|e| format!("Échec d'initialisation du sous-système de manette: {}", e))?;
-        let video_subsystem = sdl_context.video()?;
+        let sdl_context: Sdl = sdl3::init()?;
+        let controller_subsystem = sdl_context.gamepad()?;
 
         Ok(Self {
             sdl_context,
             controller_subsystem,
-            video_subsystem,
             gamepads: HashMap::new(),
         })
     }
@@ -85,7 +75,8 @@ impl GamepadsMonitor {
     pub fn start(&mut self) -> Result<(), Box<dyn Error>> {
         println!("Starting gamepad monitor");
 
-        self.controller_subsystem.set_event_state(true);
+        self.controller_subsystem.set_events_processing_state(true);
+
         let mut event_pump = self
             .sdl_context
             .event_pump()
@@ -98,7 +89,7 @@ impl GamepadsMonitor {
 
     fn update_events(&mut self, event_pump: &mut EventPump) -> Result<(), Box<dyn Error>> {
         for event in event_pump.wait_iter() {
-            let mut state = GAMEPAD_STATE.write().unwrap();
+            let mut state = { GAMEPAD_STATE.write().unwrap() };
 
             match event {
                 Event::Quit { .. } => {
@@ -125,9 +116,10 @@ impl GamepadsMonitor {
                     }
                 }
                 Event::ControllerDeviceAdded { .. } => {
-                    if let Ok(gamepad) = self.add_device() {
+                    let res = self.add_device();
+                    if let Ok(gamepad) = &res {
                         println!("Gamepad added: {}", gamepad.id());
-                        state.gamepads.insert(gamepad.id(), gamepad);
+                        state.gamepads.insert(gamepad.id(), gamepad.clone());
                         state.broadcast(state.gamepads.clone());
                     }
                 }
@@ -143,26 +135,27 @@ impl GamepadsMonitor {
     }
 
     fn add_device(&mut self) -> Result<GamepadState, Box<dyn Error>> {
-        let num_joysticks = self.controller_subsystem.num_joysticks()?;
+        let pad_ids = self.controller_subsystem.gamepads()?;
 
-        for i in 0..num_joysticks {
-            if !self.controller_subsystem.is_game_controller(i) {
+        for id in pad_ids {
+            if !self.controller_subsystem.is_gamepad(id) {
                 continue;
             }
 
-            let gamepadcontroller = match self.controller_subsystem.open(i) {
+            let gamepadcontroller = match self.controller_subsystem.open(id) {
                 Ok(controller) => controller,
                 Err(_) => continue,
             };
 
-            if !gamepadcontroller.attached() {
+            if !gamepadcontroller.connected() {
                 continue;
             }
 
             let gamepad = GamepadState::from_sdl_gamepad(&gamepadcontroller);
 
             self.gamepads
-                .insert(gamepadcontroller.instance_id(), gamepadcontroller);
+                .insert(gamepadcontroller.id().unwrap(), gamepadcontroller);
+
             return Ok(gamepad);
         }
 
@@ -172,10 +165,10 @@ impl GamepadsMonitor {
 
 pub fn sdl_button_to_gamepad_button(button: &Button) -> GamepadButton {
     match button {
-        Button::A => GamepadButton::A,
-        Button::B => GamepadButton::B,
-        Button::X => GamepadButton::X,
-        Button::Y => GamepadButton::Y,
+        Button::South => GamepadButton::A,
+        Button::East => GamepadButton::B,
+        Button::West => GamepadButton::X,
+        Button::North => GamepadButton::Y,
         Button::Back => GamepadButton::Back,
         Button::Guide => GamepadButton::Guide,
         Button::Start => GamepadButton::Start,
@@ -188,11 +181,12 @@ pub fn sdl_button_to_gamepad_button(button: &Button) -> GamepadButton {
         Button::DPadLeft => GamepadButton::DPadLeft,
         Button::DPadRight => GamepadButton::DPadRight,
         Button::Misc1 => GamepadButton::Misc1,
-        Button::Paddle1 => GamepadButton::Paddle1,
-        Button::Paddle2 => GamepadButton::Paddle2,
-        Button::Paddle3 => GamepadButton::Paddle3,
-        Button::Paddle4 => GamepadButton::Paddle4,
+        Button::LeftPaddle1 => GamepadButton::Paddle1,
+        Button::RightPaddle1 => GamepadButton::Paddle2,
+        Button::LeftPaddle2 => GamepadButton::Paddle3,
+        Button::RightPaddle2 => GamepadButton::Paddle4,
         Button::Touchpad => GamepadButton::Touchpad,
+        _ => GamepadButton::A,
     }
 }
 
